@@ -1,45 +1,68 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"net"
-	"os"
+	"log"
+	"sync"
+
+	"github.com/gorilla/websocket"
+	"github.com/labstack/echo/v4"
+)
+
+var (
+	upgrader  = websocket.Upgrader{}
+	clients   = make(map[*websocket.Conn]bool)
+	clientsMu sync.Mutex
 )
 
 func main() {
-	fmt.Println("Starting server...")
-	listener, err := net.Listen("tcp", ":8080")
-	if err != nil {
-		fmt.Println("Error starting server:", err)
-		os.Exit(1)
-	}
-	defer listener.Close()
+	e := echo.New()
+	e.GET("/ws", handleWebSocket)
 
-	fmt.Println("Server is listening on port 8080")
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection:", err)
-			continue
-		}
-		go handleConnection(conn)
-	}
+	log.Println("Server is listening on :8000")
+	e.Logger.Fatal(e.Start(":8000"))
 }
 
-func handleConnection(conn net.Conn) {
-	defer conn.Close()
-	fmt.Println("New client connected:", conn.RemoteAddr())
+func handleWebSocket(c echo.Context) error {
+	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+	if err != nil {
+		return err
+	}
+	defer ws.Close()
+
+	clientIP := ws.RemoteAddr().String()
+	log.Printf("New client connected: %s", clientIP)
+
+	clientsMu.Lock()
+	clients[ws] = true
+	clientsMu.Unlock()
+
+	defer func() {
+		clientsMu.Lock()
+		delete(clients, ws)
+		clientsMu.Unlock()
+		log.Printf("Client disconnected: %s", clientIP)
+	}()
 
 	for {
-		message, err := bufio.NewReader(conn).ReadString('\n')
+		messageType, p, err := ws.ReadMessage()
 		if err != nil {
-			fmt.Println("Client disconnected:", conn.RemoteAddr())
-			return
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				log.Printf("Client %s closed connection normally", clientIP)
+			} else if websocket.IsUnexpectedCloseError(err, websocket.CloseAbnormalClosure) {
+				log.Printf("Unexpected close error from %s: %v", clientIP, err)
+			} else {
+				log.Printf("Error reading message from %s: %v", clientIP, err)
+			}
+			return nil
 		}
 
-		fmt.Print("Message from client:", message)
-		conn.Write([]byte("Hello Client\n"))
+		log.Printf("Message from client %s: %s", clientIP, string(p))
+		response := fmt.Sprintf("Hello dear client with %s IP!; your message was: %s", clientIP, p)
+
+		if err := ws.WriteMessage(messageType, []byte(response)); err != nil {
+			log.Printf("Error writing message to %s: %v", clientIP, err)
+			return nil
+		}
 	}
 }

@@ -2,14 +2,11 @@ package main
 
 import (
 	"bufio"
-	"context"
-	"fmt"
 	"log"
 	"net/url"
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -27,79 +24,45 @@ func main() {
 	}
 	defer c.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	done := make(chan struct{})
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	// Channel to send messages to the server
-	sendCh := make(chan string)
-
-	// Read messages from server
 	go func() {
-		defer wg.Done()
+		defer close(done)
 		for {
-			select {
-			case <-ctx.Done():
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				log.Println("read:", err)
 				return
-			default:
-				_, message, err := c.ReadMessage()
-				if err != nil {
-					log.Println("read:", err)
-					cancel()
-					return
-				}
-				fmt.Printf("\nReceived from server: %s\n", message)
-				fmt.Print("Enter message: ")
 			}
+			log.Printf("Received from server: %s", message)
 		}
 	}()
 
-	// Send messages to server
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		select {
+		case <-done:
+			return
+		case <-interrupt:
+			log.Println("Interrupt received, closing connection...")
+			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			if err != nil {
+				log.Println("write close:", err)
 				return
-			case message := <-sendCh:
-				err := c.WriteMessage(websocket.TextMessage, []byte(message))
-				if err != nil {
-					log.Println("write:", err)
-					cancel()
-					return
-				}
 			}
-		}
-	}()
-
-	// Read user input
-	go func() {
-		reader := bufio.NewReader(os.Stdin)
-		for {
-			fmt.Print("Enter message: ")
+			select {
+			case <-done:
+			}
+			return
+		default:
 			message, _ := reader.ReadString('\n')
 			message = strings.TrimSpace(message)
-			if message != "" {
-				sendCh <- message
-			}
-			if ctx.Err() != nil {
+
+			err := c.WriteMessage(websocket.TextMessage, []byte(message))
+			if err != nil {
+				log.Println("write:", err)
 				return
 			}
 		}
-	}()
-
-	select {
-	case <-interrupt:
-		log.Println("Interrupt received, closing connection...")
-		err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-		if err != nil {
-			log.Println("write close:", err)
-		}
-		cancel()
-	case <-ctx.Done():
 	}
-
-	wg.Wait()
 }

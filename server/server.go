@@ -85,16 +85,36 @@ func (s *Server) handleClientMessages(client *Client) error {
 
 		log.Printf("Received from %s: %s", client.ip, msg)
 
-		if err := s.sendResponse(client, messageType, msg); err != nil {
-			log.Printf("Error sending response to %s: %v", client.ip, err)
-			return err
+		if err := s.broadcastMessage(messageType, msg, client.ip); err != nil {
+			log.Printf("Error broadcasting message to clients: %v", err)
 		}
+
+		// if err := s.sendResponse(client, messageType, msg); err != nil {
+		// 	log.Printf("Error sending response to %s: %v", client.ip, err)
+		// }
 	}
 }
 
 func (s *Server) sendResponse(client *Client, messageType int, msg []byte) error {
 	response := fmt.Sprintf("Hi dear client with %s IP; your message was: %s", client.ip, msg)
 	return client.conn.WriteMessage(messageType, []byte(response))
+}
+
+func (s *Server) broadcastMessage(messageType int, msg []byte, ip string) error {
+	msg = []byte(fmt.Sprintf("Client %s: %s", ip, msg))
+	log.Println("Broadcasting message to all clients")
+
+	for client := range s.clients {
+		if client.ip == ip {
+			continue // Skip sending message to the sender
+		}
+		if err := client.conn.WriteMessage(messageType, msg); err != nil {
+			log.Printf("Error sending message to %s: %v", client.ip, err)
+			s.removeClient(client)
+			return err
+		}
+	}
+	return nil
 }
 
 func main() {

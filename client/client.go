@@ -79,7 +79,6 @@ func sendMessages(c *websocket.Conn, done chan struct{}) {
 					handleCloseError(err)
 					return
 				}
-				log.Printf("Sent: %s", message)
 			} else if err := scanner.Err(); err != nil {
 				log.Printf("Error reading input: %v", err)
 				return

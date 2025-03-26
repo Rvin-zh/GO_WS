@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -26,19 +26,9 @@ func main() {
 
 	done := make(chan struct{})
 
-	go func() {
-		defer close(done)
-		for {
-			_, message, err := c.ReadMessage()
-			if err != nil {
-				log.Println("read:", err)
-				return
-			}
-			log.Printf("Received from server: %s", message)
-		}
-	}()
+	go receiveMessages(c, done)
+	go sendMessages(c, done)
 
-	reader := bufio.NewReader(os.Stdin)
 	for {
 		select {
 		case <-done:
@@ -48,21 +38,62 @@ func main() {
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
 				log.Println("write close:", err)
-				return
 			}
 			select {
 			case <-done:
+			case <-time.After(time.Millisecond * 500):
 			}
 			return
-		default:
-			message, _ := reader.ReadString('\n')
-			message = strings.TrimSpace(message)
+		}
+	}
+}
 
-			err := c.WriteMessage(websocket.TextMessage, []byte(message))
-			if err != nil {
-				log.Println("write:", err)
+func receiveMessages(c *websocket.Conn, done chan struct{}) {
+	defer close(done)
+	for {
+		_, message, err := c.ReadMessage()
+		if err != nil {
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				log.Println("Connection closed normally")
+			} else {
+				handleCloseError(err)
+			}
+			return
+		}
+		log.Printf("Received: %s", message)
+	}
+}
+
+func sendMessages(c *websocket.Conn, done chan struct{}) {
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			if scanner.Scan() {
+				message := scanner.Text()
+				err := c.WriteMessage(websocket.TextMessage, []byte(message))
+				if err != nil {
+					log.Println("Error while sending message:")
+					handleCloseError(err)
+					return
+				}
+				log.Printf("Sent: %s", message)
+			} else if err := scanner.Err(); err != nil {
+				log.Printf("Error reading input: %v", err)
 				return
 			}
 		}
+	}
+}
+
+func handleCloseError(err error) {
+	if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+		log.Println("Connection closed normally")
+	} else if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+		log.Printf("Unexpected close error: %v", err)
+	} else {
+		log.Printf("WebSocket error: %v", err)
 	}
 }

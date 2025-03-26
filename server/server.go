@@ -3,23 +3,25 @@ package main
 import (
 	"fmt"
 	"log"
-	"sync"
+	"net/http"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 )
 
 var (
-	upgrader  = websocket.Upgrader{}
-	clients   = make(map[*websocket.Conn]bool)
-	clientsMu sync.Mutex
+	upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
 )
 
 func main() {
 	e := echo.New()
 	e.GET("/ws", handleWebSocket)
 
-	log.Println("Server is listening on :8000")
+	fmt.Println("Server is running on :8000")
 	e.Logger.Fatal(e.Start(":8000"))
 }
 
@@ -30,39 +32,23 @@ func handleWebSocket(c echo.Context) error {
 	}
 	defer ws.Close()
 
-	clientIP := ws.RemoteAddr().String()
-	log.Printf("New client connected: %s", clientIP)
-
-	clientsMu.Lock()
-	clients[ws] = true
-	clientsMu.Unlock()
-
-	defer func() {
-		clientsMu.Lock()
-		delete(clients, ws)
-		clientsMu.Unlock()
-		log.Printf("Client disconnected: %s", clientIP)
-	}()
-
 	for {
-		messageType, p, err := ws.ReadMessage()
+		// Read message from the client
+		_, msg, err := ws.ReadMessage()
 		if err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				log.Printf("Client %s closed connection normally", clientIP)
-			} else if websocket.IsUnexpectedCloseError(err, websocket.CloseAbnormalClosure) {
-				log.Printf("Unexpected close error from %s: %v", clientIP, err)
-			} else {
-				log.Printf("Error reading message from %s: %v", clientIP, err)
-			}
-			return nil
+			log.Printf("Error reading message: %v", err)
+			break
 		}
+		log.Printf("Received: %s", msg)
 
-		log.Printf("Message from client %s: %s", clientIP, string(p))
-		response := fmt.Sprintf("Hello dear client with %s IP!; your message was: %s", clientIP, p)
-
-		if err := ws.WriteMessage(messageType, []byte(response)); err != nil {
-			log.Printf("Error writing message to %s: %v", clientIP, err)
-			return nil
+		// Send a response back to the client
+		response := fmt.Sprintf("Server received: %s", msg)
+		err = ws.WriteMessage(websocket.TextMessage, []byte(response))
+		if err != nil {
+			log.Printf("Error writing message: %v", err)
+			break
 		}
 	}
+
+	return nil
 }

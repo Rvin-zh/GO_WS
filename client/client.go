@@ -73,6 +73,17 @@ func sendMessages(c *websocket.Conn, done chan struct{}) {
 		default:
 			if scanner.Scan() {
 				message := scanner.Text()
+
+				if message == "/exit" {
+					log.Println("Exiting...")
+					err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+					if err != nil {
+						log.Println("write close:", err)
+					}
+
+					return
+				}
+
 				err := c.WriteMessage(websocket.TextMessage, []byte(message))
 				if err != nil {
 					log.Println("Error while sending message:")

@@ -1,0 +1,33 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Log files
+*.log
+logs/
+
+# Binary directories
+bin/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+
+# Project specific
+client/client
+server/server
+
+# Go testing
+*.test
+*.out
+
+# Dependency directories
+vendor/
+
+# OS specific
+.DS_Store
+Thumbs.db

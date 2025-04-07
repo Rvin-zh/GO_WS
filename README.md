@@ -26,26 +26,37 @@ A simple terminal-based chat application built with Go and WebSockets. This proj
    cd <repository-directory>
    ```
 
-2. Install dependencies:
+2. Make the scripts executable:
    ```
-   go mod download
+   chmod +x run_server.sh run_client.sh kill_server.sh
    ```
 
 ## Usage
 
 ### Quick Start
 
-Use the provided shell scripts to quickly start the server and client:
+Use the provided shell scripts to quickly start the server and client. The scripts will automatically check for and install any missing dependencies:
 
 ```bash
-# Start the server
+# Start the server (in one terminal)
 ./run_server.sh
 
-# Start a client (can run multiple instances)
+# Start a client (in another terminal)
 ./run_client.sh
 ```
 
-### Manual Start
+You can run multiple client instances to simulate multiple users chatting.
+
+### Managing Server Processes
+
+If you encounter port conflicts or need to kill the server:
+
+```bash
+# Kill any processes using port 8000
+./kill_server.sh
+```
+
+### Manual Start (Advanced)
 
 Alternatively, you can start the server and client manually:
 
@@ -84,3 +95,11 @@ The interface is divided into three main sections:
 - The client automatically attempts to connect to the server at startup
 - If the connection is lost, it automatically attempts to reconnect
 - The status bar shows your current connection state
+
+## License
+
+[MIT License](LICENSE)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

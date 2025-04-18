@@ -1,12 +1,13 @@
-# Go WebSocket Chat Application
-
-A simple terminal-based chat application built with Go and WebSockets. This project allows multiple users to connect to a central chat server and exchange messages in real-time.
-
 ## Development Note
 
 This project follows a phased development approach, with each phase developed on its own branch (e.g., `phase_1`, `phase_2`, etc.). Features are merged into the `main` branch upon completion of a phase.
 
 **Phase 4**, which included features like [mention relevant features if known, otherwise keep general], was completed on the `phase_4` branch approximately two weeks prior to its merge into `main`.
+
+# Go WebSocket Chat Application
+
+A simple terminal-based chat application built with Go and WebSockets. This project allows multiple users to connect to a central chat server and exchange messages in real-time.
+
 
 ## Features
 
